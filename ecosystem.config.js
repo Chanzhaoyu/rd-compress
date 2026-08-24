@@ -1,10 +1,12 @@
 /**
- * PM2 配置 - 仅部署 Hono 后端 (前端由 IIS 静态托管)
- * Windows Server 使用:
+ * PM2 配置 - 仅 API 需要（monorepo 根目录便捷启动）
+ * 实际分开部署时，API 请使用 apps/server/ecosystem.config.js
+ * Web 直接将 apps/web/dist 复制到 IIS，无需 PM2
+ *
+ * 根目录启动（开发/一体化部署）：
  *   pm2 start ecosystem.config.js --env production
- *   pm2 save
- *   pm2 startup  (按提示执行)
- *   pm2 logs redon-compress-server
+ * 分开部署（推荐）：
+ *   复制 apps/server 到服务器后，在该目录内 pm2 start ecosystem.config.js
  */
 module.exports = {
   apps: [

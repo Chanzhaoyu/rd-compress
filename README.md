@@ -6,11 +6,15 @@
 
 ```
 redon-compress/
-  apps/web      # Vite+React 前端 -> IIS
-  apps/server   # Hono 后端 -> PM2
-  ecosystem.config.js  # PM2 仅后端
-  web.config    # IIS SPA 回退 + API 代理示例
+  apps/web              # Vite+React 前端 -> IIS (仅 dist)
+    public/web.config   # IIS 配置，build 后自动到 dist/web.config
+    dist/               # 直接复制到 IIS 即可
+  apps/server           # Hono 后端 -> PM2 (独立部署)
+    ecosystem.config.js # 仅 API 需要，Web 不需要 PM2
+    bin/ffmpeg.exe      # 自带 ffmpeg
 ```
+
+> 分开部署：`web` 与 `api` 完全独立，`ecosystem.config.js` 仅 `api` 使用。
 
 ## 快速开始
 
@@ -25,48 +29,51 @@ pnpm --filter @redon-compress/web dev      # http://localhost:6080 (代理 /api 
 pnpm build
 ```
 
-## 部署
+## 部署（分开部署）
 
-### 前端 - IIS 静态
+### 1. Web 端 - IIS 静态（仅复制 dist）
 
-1. `pnpm --filter @redon-compress/web build`
-2. 将 `apps/web/dist` 内容复制到 IIS 站点目录
-3. 将 `web.config` 放到站点根目录 (已处理 SPA 回退)
-4. (可选) 安装 `ARR + URL Rewrite`，取消 `web.config` 中 API 代理注释，实现同域 `/api -> localhost:6070` 免 CORS
-
-或配置前端 `apps/web/.env.production`:
+```bash
+# 本地/CI 构建
+pnpm --filter @redon-compress/web build
+# 产物：apps/web/dist/ 已包含 index.html + assets + web.config (来自 public/web.config)
 ```
-VITE_API_BASE_URL=http://10.x.x.x:6070
-```
+- 将 `apps/web/dist` **整个文件夹内容**直接复制到 IIS 站点物理路径即可，无需额外 `web.config` 操作（已内置 SPA 回退）。
+- 如需同域代理 API，编辑 `dist/web.config` 取消 `Proxy API to Hono` 注释（需安装 ARR + URL Rewrite）；否则配置 `apps/web/.env.production`：
+  ```
+  VITE_API_BASE_URL=http://10.x.x.x:6070
+  ```
 
-### 后端 - Windows Server + PM2
+### 2. API 端 - Windows Server + PM2（仅 server 目录）
 
 **ffmpeg 已改为环境自带，无需手动安装到 PATH：**
 
 ```bash
 # 在 Mac 开发机上，也能一键下载 Windows 版 ffmpeg.exe (约 80MB)
 pnpm --filter @redon-compress/server download:ffmpeg:win
-# 或下载所有平台
-pnpm --filter @redon-compress/server download:ffmpeg:all
-# 验证 bin/ffmpeg.exe 已生成，提交或随部署产物拷贝
-ls -lh apps/server/bin/
+ls -lh apps/server/bin/  # 确认 ffmpeg.exe 已生成
 ```
 
-优先级：`FFMPEG_PATH` 环境变量 > `apps/server/bin/ffmpeg.exe` (Windows) / `bin/ffmpeg` (Mac/Linux) > 系统 `PATH`
-
-**部署 (Windows Server):**
+**服务器上单独部署（复制 apps/server 目录后）：**
 ```powershell
-# 方式1：自带二进制（推荐）
-# 将含 bin/ffmpeg.exe 的 apps/server 目录整体拷贝到服务器
-pnpm --filter @redon-compress/server build
+# 将 apps/server 目录完整复制到服务器，例如 C:\redon-compress-server\
+cd C:\redon-compress-server
+
+# 1. 安装依赖
+pnpm install
+# 或 npm install
+
+# 2. 构建
+pnpm build        # tsc -> dist/
+
+# 3. PM2 启动（使用 server 目录内的 ecosystem.config.js，仅 API 需要）
 pm2 start ecosystem.config.js --env production
 pm2 save
-pm2 startup   # 按提示执行开机自启
+pm2 startup
 pm2 logs redon-compress-server
-
-# 方式2：传统 PATH 方式（仍兼容）
-# 手动安装 ffmpeg 到 C:\ffmpeg 并设 FFMPEG_PATH
 ```
+
+> `ecosystem.config.js` 已内置于 `apps/server/`，`web` 端完全不需要 PM2。
 
 健康检查: `GET http://localhost:6070/api/health`
 
