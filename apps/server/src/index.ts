@@ -4,6 +4,7 @@ import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import { imageRoute } from "./routes/image.js";
 import { videoRoute } from "./routes/video.js";
+import { checkFfmpeg } from "./utils/ffmpeg.js";
 
 const app = new Hono();
 
@@ -21,11 +22,13 @@ app.use(
 
 // Health check - for PM2 / IIS probe
 app.get("/api/health", (c) => {
+  const ff = checkFfmpeg();
   return c.json({
     status: "ok",
     uptime: process.uptime(),
     version: "0.1.0",
-    ffmpeg: process.env.FFMPEG_PATH || "ffmpeg (from PATH)",
+    ffmpeg: { path: ff.path, bundled: ff.bundled, ok: ff.ok },
+    platform: `${process.platform}-${process.arch}`,
     timestamp: new Date().toISOString(),
   });
 });
@@ -36,7 +39,7 @@ app.route("/api/compress/video", videoRoute);
 
 app.get("/", (c) => {
   return c.json({
-    name: "rd-compress server",
+    name: "redon-compress server",
     docs: {
       health: "GET /api/health",
       image: "POST /api/compress/image (multipart file, quality, format, width, height)",
@@ -52,8 +55,8 @@ app.onError((err, c) => {
   return c.json({ error: err.message || "Internal Server Error" }, 500);
 });
 
-const port = Number(process.env.PORT) || 3000;
-console.log(`[rd-compress] Starting server on port ${port}...`);
+const port = Number(process.env.PORT) || 6070;
+console.log(`[redon-compress] Starting server on port ${port}...`);
 
 serve(
   {
@@ -61,7 +64,7 @@ serve(
     port,
   },
   (info) => {
-    console.log(`[rd-compress] Server running at http://localhost:${info.port}`);
-    console.log(`[rd-compress] Health: http://localhost:${info.port}/api/health`);
+    console.log(`[redon-compress] Server running at http://localhost:${info.port}`);
+    console.log(`[redon-compress] Health: http://localhost:${info.port}/api/health`);
   }
 );

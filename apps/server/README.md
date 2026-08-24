@@ -1,4 +1,4 @@
-# @rd-compress/server
+# @redon-compress/server
 
 Hono 后端 - 图片/视频压缩，文件用完即删，适合 Windows Server + PM2。
 
@@ -6,13 +6,13 @@ Hono 后端 - 图片/视频压缩，文件用完即删，适合 Windows Server +
 
 ```bash
 pnpm install
-pnpm --filter @rd-compress/server dev  # http://localhost:3000
+pnpm --filter @redon-compress/server dev  # http://localhost:6070
 ```
 
 ## 构建/部署 (Windows Server)
 
 ```bash
-pnpm --filter @rd-compress/server build
+pnpm --filter @redon-compress/server build
 # 确保 dist/index.js 存在
 pm2 start ecosystem.config.js --env production
 pm2 save

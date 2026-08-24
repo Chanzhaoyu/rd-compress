@@ -1,10 +1,64 @@
 import { spawn } from "node:child_process";
 import { existsSync } from "node:fs";
+import { join, dirname } from "node:path";
+import { fileURLToPath } from "node:url";
 
-export function checkFfmpeg(): { ok: boolean; path: string } {
-  // Windows: ffmpeg.exe should be in PATH or alongside
-  const ffmpeg = process.env.FFMPEG_PATH || "ffmpeg";
-  return { ok: true, path: ffmpeg };
+function resolveBundledFfmpeg(): string | null {
+  // 优先级：FFMPEG_PATH > 自带 bin > PATH
+  if (process.env.FFMPEG_PATH && existsSync(process.env.FFMPEG_PATH)) {
+    return process.env.FFMPEG_PATH;
+  }
+  if (process.env.FFMPEG_PATH) {
+    // 允许用户设为 "ffmpeg" 走 PATH
+    if (process.env.FFMPEG_PATH === "ffmpeg") return null;
+    return process.env.FFMPEG_PATH;
+  }
+
+  // 尝试自带 bin：兼容 dev (src/utils) 和 prod (dist/utils) 两种运行路径
+  // 以及 Windows Server 上 cwd 可能不同
+  const isWin = process.platform === "win32";
+  const exeName = isWin ? "ffmpeg.exe" : "ffmpeg";
+
+  // import.meta.url 在 ESM 中可用，fallback 到 cwd
+  let baseDir: string | null = null;
+  try {
+    baseDir = dirname(fileURLToPath(import.meta.url));
+  } catch {
+    baseDir = null;
+  }
+
+  const candidates: string[] = [];
+  if (baseDir) {
+    candidates.push(join(baseDir, "../../bin", exeName)); // dist/utils -> bin
+    candidates.push(join(baseDir, "../bin", exeName)); // src/utils -> bin (tsx watch)
+    candidates.push(join(baseDir, "../../../apps/server/bin", exeName)); // monorepo root fallback
+  }
+  candidates.push(join(process.cwd(), "bin", exeName));
+  candidates.push(join(process.cwd(), "apps/server/bin", exeName));
+  // pm2 cwd 为 apps/server 时 process.cwd() 已是该目录，上面的已覆盖
+  // 额外尝试 __dirname 风格的绝对路径（Windows 常见）
+  if (process.env.PM2_HOME) {
+    // pm2 环境不特殊处理，仍走 candidates
+  }
+
+  for (const p of candidates) {
+    if (existsSync(p)) return p;
+  }
+  return null;
+}
+
+export function getFfmpegPath(): string {
+  const bundled = resolveBundledFfmpeg();
+  if (bundled) return bundled;
+  return process.env.FFMPEG_PATH || "ffmpeg";
+}
+
+export function checkFfmpeg(): { ok: boolean; path: string; bundled: boolean } {
+  const p = getFfmpegPath();
+  const bundled = p !== "ffmpeg" && p !== process.env.FFMPEG_PATH;
+  // 即使 bundled 为 null，最终也会用 "ffmpeg" 走 PATH，这里只做存在性检查供 health 用
+  const exists = p === "ffmpeg" ? true : existsSync(p);
+  return { ok: exists, path: p, bundled };
 }
 
 export interface FfmpegProgress {
@@ -16,7 +70,7 @@ export function runFfmpeg(
   args: string[],
   onProgress?: (p: FfmpegProgress) => void
 ): Promise<void> {
-  const { path } = checkFfmpeg();
+  const path = getFfmpegPath();
   return new Promise((resolve, reject) => {
     const proc = spawn(path, args, { stdio: ["ignore", "pipe", "pipe"] });
     let stderr = "";

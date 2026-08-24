@@ -8,3 +8,9 @@ dist
 apps/server/tmp
 apps/server/uploads
 apps/web/dist
+# ffmpeg 自带二进制默认忽略，按需 git add -f 提交或 CI 下载
+apps/server/bin/ffmpeg
+apps/server/bin/ffmpeg.exe
+apps/server/bin/ffmpeg-*
+!apps/server/bin/.gitkeep
+!apps/server/bin/README.md

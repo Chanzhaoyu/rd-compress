@@ -1,18 +1,52 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { compressVideo, formatBytes } from "../lib/api";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Progress } from "@/components/ui/progress";
+import { Badge } from "@/components/ui/badge";
+import { Upload, Video as VideoIcon, Download, Loader2, Sparkles, Trash2, RotateCcw } from "lucide-react";
+import { loadSettings, saveSettings } from "@/lib/settings";
+
+const VIDEO_DEFAULTS = { crf: 28, preset: "medium", width: "", height: "", fps: "", noAudio: false };
+const VIDEO_KEY = "redon-compress:video-settings";
+
+function crfBadgeClass(crf: number) {
+  if (crf <= 20) return "bg-emerald-500 text-white hover:bg-emerald-600 border-transparent";
+  if (crf <= 25) return "bg-sky-500 text-white hover:bg-sky-600 border-transparent";
+  if (crf <= 30) return "bg-amber-500 text-white hover:bg-amber-600 border-transparent";
+  return "bg-red-500 text-white hover:bg-red-600 border-transparent";
+}
 
 export function VideoCompressor() {
   const [file, setFile] = useState<File | null>(null);
-  const [crf, setCrf] = useState(28);
-  const [preset, setPreset] = useState("medium");
-  const [width, setWidth] = useState("");
-  const [height, setHeight] = useState("");
-  const [fps, setFps] = useState("");
-  const [noAudio, setNoAudio] = useState(false);
+  const [crf, setCrf] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).crf);
+  const [preset, setPreset] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).preset);
+  const [width, setWidth] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).width);
+  const [height, setHeight] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).height);
+  const [fps, setFps] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).fps);
+  const [noAudio, setNoAudio] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).noAudio);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [result, setResult] = useState<{ url: string; size: string; ratio: string; originalSize: number; compressedSize: number } | null>(null);
   const [error, setError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+
+  useEffect(() => {
+    saveSettings(VIDEO_KEY, { crf, preset, width, height, fps, noAudio });
+  }, [crf, preset, width, height, fps, noAudio]);
+
+  const resetSettings = () => {
+    setCrf(VIDEO_DEFAULTS.crf);
+    setPreset(VIDEO_DEFAULTS.preset);
+    setWidth(VIDEO_DEFAULTS.width);
+    setHeight(VIDEO_DEFAULTS.height);
+    setFps(VIDEO_DEFAULTS.fps);
+    setNoAudio(VIDEO_DEFAULTS.noAudio);
+  };
 
   const onFileChange = (f: File | null) => {
     if (!f) return;
@@ -22,10 +56,11 @@ export function VideoCompressor() {
     setProgress(0);
   };
 
-  const onDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    const f = e.dataTransfer.files[0];
-    if (f) onFileChange(f);
+  const clear = () => {
+    setFile(null);
+    setResult(null);
+    setError("");
+    setProgress(0);
   };
 
   const handleCompress = async () => {
@@ -45,121 +80,179 @@ export function VideoCompressor() {
           fps: fps ? Number(fps) : undefined,
           noAudio,
         },
-        (loaded, total) => {
-          setProgress(Math.round((loaded / total) * 100));
-        }
+        (loaded, total) => setProgress(Math.round((loaded / total) * 100))
       );
       const url = URL.createObjectURL(res.blob);
-      setResult({
-        url,
-        size: formatBytes(res.compressedSize),
-        ratio: res.ratio,
-        originalSize: res.originalSize,
-        compressedSize: res.compressedSize,
-      });
+      setResult({ url, size: formatBytes(res.compressedSize), ratio: res.ratio, originalSize: res.originalSize, compressedSize: res.compressedSize });
       setProgress(100);
     } catch (e: any) {
-      setError(e.message || "视频压缩失败，请确认后端 ffmpeg 已安装");
+      setError(e.message || "视频压缩失败");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ border: "1px solid #e5e7eb", borderRadius: 12, padding: 20, background: "#fff" }}>
-      <h3 style={{ margin: "0 0 12px 0" }}>视频压缩</h3>
-      <p style={{ color: "#6b7280", fontSize: 13, margin: "0 0 16px 0" }}>后端 ffmpeg 转码为 H.264/mp4 · 文件不落地 · 支持分辨率/帧率/去音频</p>
-
-      <div
-        onDragOver={(e) => e.preventDefault()}
-        onDrop={onDrop}
-        style={{ border: "2px dashed #d1d5db", borderRadius: 10, padding: 24, textAlign: "center", background: "#f9fafb", cursor: "pointer" }}
-        onClick={() => document.getElementById("video-input")?.click()}
-      >
-        <input id="video-input" type="file" accept="video/*" style={{ display: "none" }} onChange={(e) => onFileChange(e.target.files?.[0] || null)} />
-        <div style={{ fontSize: 14, color: "#374151" }}>{file ? file.name + ` (${formatBytes(file.size)})` : "点击选择或拖拽视频到此处"}</div>
-        {file && <div style={{ fontSize: 12, color: "#9ca3af", marginTop: 4 }}>最大 500MB · 再次点击可更换</div>}
-      </div>
-
-      {file && (
-        <video src={URL.createObjectURL(file)} controls style={{ width: "100%", maxWidth: 500, marginTop: 12, borderRadius: 8, background: "#000" }} />
-      )}
-
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginTop: 16 }}>
-        <label style={{ fontSize: 13 }}>
-          CRF: {crf} (越小质量越高)
-          <input type="range" min={18} max={35} value={crf} onChange={(e) => setCrf(Number(e.target.value))} style={{ width: "100%" }} />
-          <span style={{ fontSize: 11, color: "#6b7280" }}>推荐 23-28，28 体积更小</span>
-        </label>
-        <label style={{ fontSize: 13 }}>
-          Preset
-          <select value={preset} onChange={(e) => setPreset(e.target.value)} style={{ width: "100%", padding: 6, borderRadius: 6, border: "1px solid #d1d5db", marginTop: 4 }}>
-            <option value="ultrafast">ultrafast (最快)</option>
-            <option value="veryfast">veryfast</option>
-            <option value="faster">faster</option>
-            <option value="fast">fast</option>
-            <option value="medium">medium (均衡)</option>
-            <option value="slow">slow (更小体积)</option>
-          </select>
-        </label>
-        <label style={{ fontSize: 13 }}>
-          宽度
-          <input value={width} onChange={(e) => setWidth(e.target.value)} placeholder="例如 1280" style={{ width: "100%", padding: 6, borderRadius: 6, border: "1px solid #d1d5db", marginTop: 4 }} />
-        </label>
-        <label style={{ fontSize: 13 }}>
-          高度
-          <input value={height} onChange={(e) => setHeight(e.target.value)} placeholder="例如 720" style={{ width: "100%", padding: 6, borderRadius: 6, border: "1px solid #d1d5db", marginTop: 4 }} />
-        </label>
-        <label style={{ fontSize: 13 }}>
-          帧率 (fps, 可选)
-          <input value={fps} onChange={(e) => setFps(e.target.value)} placeholder="例如 30" style={{ width: "100%", padding: 6, borderRadius: 6, border: "1px solid #d1d5db", marginTop: 4 }} />
-        </label>
-        <label style={{ fontSize: 13, display: "flex", alignItems: "center", gap: 8, marginTop: 22 }}>
-          <input type="checkbox" checked={noAudio} onChange={(e) => setNoAudio(e.target.checked)} /> 去除音频
-        </label>
-      </div>
-
-      {loading && (
-        <div style={{ marginTop: 12 }}>
-          <div style={{ fontSize: 12, color: "#374151", marginBottom: 4 }}>上传/处理中 {progress}%</div>
-          <div style={{ height: 8, background: "#e5e7eb", borderRadius: 999 }}>
-            <div style={{ width: `${progress}%`, height: "100%", background: "#111827", borderRadius: 999, transition: "width 0.3s" }} />
+    <div className="grid gap-6 lg:grid-cols-5">
+      <Card className="lg:col-span-3">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <VideoIcon className="h-4 w-4" /> 视频上传
+          </CardTitle>
+          <CardDescription>MP4 / MOV / WebM / MKV · 最大 500MB · 转码为 H.264</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div
+            onDragOver={(e) => {
+              e.preventDefault();
+              setDragOver(true);
+            }}
+            onDragLeave={() => setDragOver(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setDragOver(false);
+              const f = e.dataTransfer.files[0];
+              if (f) onFileChange(f);
+            }}
+            onClick={() => document.getElementById("video-input")?.click()}
+            className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${dragOver ? "border-primary bg-primary/5" : "border-muted-foreground/20 hover:border-primary/50 hover:bg-muted/50"}`}
+          >
+            <input id="video-input" type="file" accept="video/*" className="hidden" onChange={(e) => onFileChange(e.target.files?.[0] || null)} />
+            <div className="rounded-full bg-primary/10 p-3">
+              <Upload className="h-6 w-6 text-primary" />
+            </div>
+            <p className="mt-3 text-sm font-medium">{file ? file.name : "点击或拖拽视频到此处"}</p>
+            <p className="text-xs text-muted-foreground">{file ? formatBytes(file.size) : "支持常见视频格式"}</p>
           </div>
-        </div>
-      )}
 
-      <button
-        onClick={handleCompress}
-        disabled={!file || loading}
-        style={{
-          marginTop: 16,
-          width: "100%",
-          padding: "10px 16px",
-          background: !file || loading ? "#9ca3af" : "#111827",
-          color: "#fff",
-          border: "none",
-          borderRadius: 8,
-          cursor: !file || loading ? "not-allowed" : "pointer",
-          fontWeight: 600,
-        }}
-      >
-        {loading ? "处理中... (请耐心等待，大视频需数十秒)" : "开始压缩"}
-      </button>
+          {file && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>原视频预览</Label>
+                <Button variant="ghost" size="sm" onClick={clear} className="h-7 gap-1 text-xs">
+                  <Trash2 className="h-3.5 w-3.5" /> 清除
+                </Button>
+              </div>
+              <video src={URL.createObjectURL(file)} controls className="w-full rounded-lg border bg-black" />
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
-      {error && <div style={{ marginTop: 12, color: "#dc2626", fontSize: 13, background: "#fef2f2", padding: 10, borderRadius: 8 }}>{error}</div>}
+      <div className="space-y-6 lg:col-span-2">
+        <Card>
+          <CardHeader>
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Sparkles className="h-4 w-4" /> 压缩参数
+                </CardTitle>
+                <CardDescription>自动本地保存 · CRF 越小质量越高</CardDescription>
+              </div>
+              <Button variant="ghost" size="sm" onClick={resetSettings} className="h-7 shrink-0 gap-1 text-xs">
+                <RotateCcw className="h-3.5 w-3.5" /> 恢复默认
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label>CRF 质量</Label>
+                <Badge className={`font-mono ${crfBadgeClass(crf)}`}>{crf}</Badge>
+              </div>
+              <Slider value={[crf]} min={18} max={35} step={1} onValueChange={([v]) => setCrf(v)} />
+              <div className="flex justify-between text-xs">
+                <span className="text-muted-foreground">高质量</span>
+                <span className={`font-medium ${crf <= 20 ? "text-emerald-600" : crf <= 25 ? "text-sky-500" : crf <= 30 ? "text-amber-500" : "text-red-500"}`}>
+                  {crf <= 20 ? "极清" : crf <= 23 ? "推荐" : crf <= 28 ? "均衡" : "极致压缩"}
+                </span>
+                <span className="text-muted-foreground">高压缩</span>
+              </div>
+            </div>
 
-      {result && (
-        <div style={{ marginTop: 16, background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: 10, padding: 16 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: "#15803d" }}>压缩完成</div>
-          <div style={{ fontSize: 13, color: "#374151", marginTop: 6 }}>
-            原始: {formatBytes(result.originalSize)} → 压缩后: {result.size} · 节省 {result.ratio}%
-          </div>
-          <video src={result.url} controls style={{ width: "100%", maxWidth: 500, marginTop: 12, borderRadius: 8, background: "#000" }} />
-          <a href={result.url} download={`compressed-${Date.now()}.mp4`} style={{ display: "inline-block", marginTop: 12, padding: "8px 14px", background: "#15803d", color: "#fff", borderRadius: 8, textDecoration: "none", fontSize: 13, fontWeight: 600 }}>
-            下载视频
-          </a>
-        </div>
-      )}
+            <div className="space-y-2">
+              <Label>Preset</Label>
+              <Select value={preset} onValueChange={setPreset}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ultrafast">ultrafast 最快</SelectItem>
+                  <SelectItem value="veryfast">veryfast</SelectItem>
+                  <SelectItem value="faster">faster</SelectItem>
+                  <SelectItem value="fast">fast</SelectItem>
+                  <SelectItem value="medium">medium 均衡</SelectItem>
+                  <SelectItem value="slow">slow 更小</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>宽度</Label>
+                <Input placeholder="1280" value={width} onChange={(e) => setWidth(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>高度</Label>
+                <Input placeholder="720" value={height} onChange={(e) => setHeight(e.target.value)} />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>帧率 (可选)</Label>
+              <Input placeholder="30" value={fps} onChange={(e) => setFps(e.target.value)} />
+            </div>
+
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2 text-sm">
+              <input type="checkbox" checked={noAudio} onChange={(e) => setNoAudio(e.target.checked)} className="rounded" />
+              去除音频
+            </label>
+
+            {loading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span>上传/处理中</span>
+                  <span>{progress}%</span>
+                </div>
+                <Progress value={progress} />
+              </div>
+            )}
+
+            <Button onClick={handleCompress} disabled={!file || loading} className="w-full">
+              {loading ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" /> 处理中...
+                </>
+              ) : (
+                "开始压缩"
+              )}
+            </Button>
+            {error && <div className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</div>}
+          </CardContent>
+        </Card>
+
+        {result && (
+          <Card className="border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm text-emerald-700 dark:text-emerald-400">压缩完成</CardTitle>
+              <CardDescription>
+                {formatBytes(result.originalSize)} → {result.size} · 节省 {result.ratio}%
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <video src={result.url} controls className="w-full rounded-lg border bg-black" />
+              <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => {
+                const a = document.createElement("a");
+                a.href = result.url;
+                a.download = `compressed-${Date.now()}.mp4`;
+                a.click();
+              }}>
+                <Download className="h-4 w-4" /> 下载视频
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }

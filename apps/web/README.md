@@ -1,4 +1,4 @@
-# @rd-compress/web
+# @redon-compress/web
 
 Vite + React 前端，IIS 静态部署。
 
@@ -7,6 +7,6 @@ Vite + React 前端，IIS 静态部署。
 - 构建后 `dist` 直接丢 IIS
 
 ```
-pnpm --filter @rd-compress/web dev
-pnpm --filter @rd-compress/web build
+pnpm --filter @redon-compress/web dev
+pnpm --filter @redon-compress/web build
 ```

@@ -5,7 +5,7 @@ import { unlink, mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
 export function getTempDir(): string {
-  const dir = join(tmpdir(), "rd-compress");
+  const dir = join(tmpdir(), "redon-compress");
   if (!existsSync(dir)) {
     // fire and forget; will be created on demand
   }

@@ -1,5 +1,5 @@
 {
-  "name": "@rd-compress/server",
+  "name": "@redon-compress/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -7,7 +7,11 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "download:ffmpeg": "node scripts/download-ffmpeg.mjs",
+    "download:ffmpeg:win": "node scripts/download-ffmpeg.mjs --win",
+    "download:ffmpeg:all": "node scripts/download-ffmpeg.mjs --all",
+    "postinstall": "node scripts/download-ffmpeg.mjs || true"
   },
   "dependencies": {
     "@hono/node-server": "^1.12.0",
