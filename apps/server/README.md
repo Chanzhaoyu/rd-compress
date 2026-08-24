@@ -17,11 +17,11 @@ pnpm --filter @redon-compress/server dev  # http://localhost:6070
 pnpm install          # 或 npm install
 pnpm download:ffmpeg:win  # 可选，预下载 Windows 版 ffmpeg.exe 到 bin/
 pnpm build            # tsc -> dist/
-pm2 start ecosystem.config.js --env production
+pm2 start ecosystem.config.cjs --env production
 pm2 save
 pm2 startup
 pm2 logs redon-compress-server
-# ecosystem.config.js 已在 apps/server 内，仅 API 需要；Web 端无需 PM2
+# ecosystem.config.cjs 已在 apps/server 内，仅 API 需要；Web 端无需 PM2
 ```
 
 ### 前置依赖

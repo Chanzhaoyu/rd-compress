@@ -10,11 +10,11 @@ redon-compress/
     public/web.config   # IIS 配置，build 后自动到 dist/web.config
     dist/               # 直接复制到 IIS 即可
   apps/server           # Hono 后端 -> PM2 (独立部署)
-    ecosystem.config.js # 仅 API 需要，Web 不需要 PM2
+    ecosystem.config.cjs # 仅 API 需要，Web 不需要 PM2
     bin/ffmpeg.exe      # 自带 ffmpeg
 ```
 
-> 分开部署：`web` 与 `api` 完全独立，`ecosystem.config.js` 仅 `api` 使用。
+> 分开部署：`web` 与 `api` 完全独立，`ecosystem.config.cjs` 仅 `api` 使用。
 
 ## 快速开始
 
@@ -66,14 +66,14 @@ pnpm install
 # 2. 构建
 pnpm build        # tsc -> dist/
 
-# 3. PM2 启动（使用 server 目录内的 ecosystem.config.js，仅 API 需要）
-pm2 start ecosystem.config.js --env production
+# 3. PM2 启动（使用 server 目录内的 ecosystem.config.cjs，仅 API 需要）
+pm2 start ecosystem.config.cjs --env production
 pm2 save
 pm2 startup
 pm2 logs redon-compress-server
 ```
 
-> `ecosystem.config.js` 已内置于 `apps/server/`，`web` 端完全不需要 PM2。
+> `ecosystem.config.cjs` 已内置于 `apps/server/`，`web` 端完全不需要 PM2。
 
 健康检查: `GET http://localhost:6070/api/health`
 

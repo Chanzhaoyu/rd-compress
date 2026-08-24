@@ -4,7 +4,7 @@
  *
  *   pnpm install        # 或 npm install
  *   pnpm build          # tsc -> dist/
- *   pm2 start ecosystem.config.js --env production
+ *   pm2 start ecosystem.config.cjs --env production
  *   pm2 save
  *   pm2 startup
  *   pm2 logs redon-compress-server
@@ -16,8 +16,8 @@ module.exports = {
     {
       name: "redon-compress-server",
       script: "./dist/index.js",
-      instances: 2,
-      exec_mode: "cluster",
+      instances: 1,
+      exec_mode: "fork",
       watch: false,
       max_memory_restart: "500M",
       env: {
