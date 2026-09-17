@@ -1,6 +1,6 @@
 # Redon Compress - 内部图片/视频压缩工具站
 
-> Vite+React (IIS 静态) + Hono (PM2) · 文件不落地，用完即删 · 可扩展编辑/裁剪
+> Vite+React (IIS 静态) + Hono (PM2) · 处理完删除临时文件，不持久化 · 可扩展编辑/裁剪
 
 ## 结构
 

@@ -1,15 +1,34 @@
 import { randomUUID } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { unlink, mkdir } from "node:fs/promises";
+import { unlink, mkdir, readdir, stat } from "node:fs/promises";
 import { existsSync } from "node:fs";
 
 export function getTempDir(): string {
-  const dir = join(tmpdir(), "redon-compress");
-  if (!existsSync(dir)) {
-    // fire and forget; will be created on demand
+  return join(tmpdir(), "redon-compress");
+}
+
+export async function cleanupStaleTemp(maxAgeMs = 60 * 60 * 1000): Promise<void> {
+  const dir = getTempDir();
+  if (!existsSync(dir)) return;
+  try {
+    const files = await readdir(dir, { withFileTypes: true });
+    const now = Date.now();
+    await Promise.all(
+      files.map(async (entry) => {
+        if (!entry.isFile()) return;
+        const full = join(dir, entry.name);
+        try {
+          const info = await stat(full);
+          if (now - info.mtimeMs > maxAgeMs) await unlink(full);
+        } catch {
+          // ignore
+        }
+      })
+    );
+  } catch {
+    // ignore
   }
-  return dir;
 }
 
 export async function ensureTempDir(): Promise<string> {

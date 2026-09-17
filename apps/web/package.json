@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite --port 6080",
     "build": "tsc && vite build",
-    "preview": "vite preview --port 6080"
+    "preview": "vite preview --port 6080",
+    "lint": "tsc --noEmit"
   },
   "dependencies": {
     "@radix-ui/react-label": "^2.1.15",
@@ -24,7 +25,6 @@
     "tailwind-merge": "^3.6.0"
   },
   "devDependencies": {
-    "@types/jszip": "^3.4.1",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",

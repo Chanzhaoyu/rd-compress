@@ -16,7 +16,7 @@ export async function compressImage(
 ): Promise<{ data: Buffer; format: string; contentType: string }> {
   const { quality = 80, format = "keep", width, height } = opts;
 
-  let pipeline = sharp(input, { failOn: "none" });
+  let pipeline = sharp(input, { failOn: "none" }).rotate();
   const meta = await pipeline.metadata();
 
   // resize if needed (without enlarge by default)
@@ -40,11 +40,10 @@ export async function compressImage(
 
   switch (outputFormat) {
     case "jpeg":
-      buffer = await pipeline.jpeg({ quality, mozjpeg: true }).toBuffer();
+      buffer = await pipeline.flatten({ background: "#ffffff" }).jpeg({ quality, mozjpeg: true }).toBuffer();
       contentType = "image/jpeg";
       break;
     case "png":
-      // quality for png is compression level mapping 100->0, 0->9? Use palette for better
       buffer = await pipeline.png({ quality: Math.round(quality), compressionLevel: 9, palette: quality < 90 }).toBuffer();
       contentType = "image/png";
       break;
@@ -57,7 +56,7 @@ export async function compressImage(
       contentType = "image/avif";
       break;
     default:
-      buffer = await pipeline.jpeg({ quality }).toBuffer();
+      buffer = await pipeline.flatten({ background: "#ffffff" }).jpeg({ quality, mozjpeg: true }).toBuffer();
       contentType = "image/jpeg";
   }
 

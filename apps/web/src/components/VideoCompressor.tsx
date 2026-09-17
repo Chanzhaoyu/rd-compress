@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { compressVideo, formatBytes } from "../lib/api";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -31,9 +31,24 @@ export function VideoCompressor() {
   const [noAudio, setNoAudio] = useState(() => loadSettings(VIDEO_KEY, VIDEO_DEFAULTS).noAudio);
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [result, setResult] = useState<{ url: string; size: string; ratio: string; originalSize: number; compressedSize: number } | null>(null);
   const [error, setError] = useState("");
   const [dragOver, setDragOver] = useState(false);
+  const [result, setResult] = useState<{ blob: Blob; size: string; ratio: string; originalSize: number; compressedSize: number } | null>(null);
+
+  const previewUrl = useMemo(() => (file ? URL.createObjectURL(file) : null), [file]);
+  const resultUrl = useMemo(() => (result ? URL.createObjectURL(result.blob) : null), [result]);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  useEffect(() => {
+    return () => {
+      if (resultUrl) URL.revokeObjectURL(resultUrl);
+    };
+  }, [resultUrl]);
 
   useEffect(() => {
     saveSettings(VIDEO_KEY, { crf, preset, width, height, fps, noAudio });
@@ -80,13 +95,12 @@ export function VideoCompressor() {
           fps: fps ? Number(fps) : undefined,
           noAudio,
         },
-        (loaded, total) => setProgress(Math.round((loaded / total) * 100))
+        (loaded, total) => setProgress(Math.min(90, Math.round((loaded / total) * 90)))
       );
-      const url = URL.createObjectURL(res.blob);
-      setResult({ url, size: formatBytes(res.compressedSize), ratio: res.ratio, originalSize: res.originalSize, compressedSize: res.compressedSize });
+      setResult({ blob: res.blob, size: formatBytes(res.compressedSize), ratio: res.ratio, originalSize: res.originalSize, compressedSize: res.compressedSize });
       setProgress(100);
-    } catch (e: any) {
-      setError(e.message || "视频压缩失败");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "视频压缩失败");
     } finally {
       setLoading(false);
     }
@@ -133,7 +147,7 @@ export function VideoCompressor() {
                   <Trash2 className="h-3.5 w-3.5" /> 清除
                 </Button>
               </div>
-              <video src={URL.createObjectURL(file)} controls className="w-full rounded-lg border bg-black" />
+              <video src={previewUrl || undefined} controls className="w-full rounded-lg border bg-black" />
             </div>
           )}
         </CardContent>
@@ -211,7 +225,7 @@ export function VideoCompressor() {
             {loading && (
               <div className="space-y-2">
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>上传/处理中</span>
+                  <span>{progress < 90 ? "上传中" : "转码中"}</span>
                   <span>{progress}%</span>
                 </div>
                 <Progress value={progress} />
@@ -240,11 +254,13 @@ export function VideoCompressor() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
-              <video src={result.url} controls className="w-full rounded-lg border bg-black" />
+              <video src={resultUrl || undefined} controls className="w-full rounded-lg border bg-black" />
               <Button className="w-full bg-emerald-600 hover:bg-emerald-700" onClick={() => {
+                if (!resultUrl) return;
                 const a = document.createElement("a");
-                a.href = result.url;
-                a.download = `compressed-${Date.now()}.mp4`;
+                a.href = resultUrl;
+                const base = file?.name.replace(/\.[^.]+$/, "") || "video";
+                a.download = `${base}-compressed.mp4`;
                 a.click();
               }}>
                 <Download className="h-4 w-4" /> 下载视频

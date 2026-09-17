@@ -2,32 +2,49 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
+import { bodyLimit } from "hono/body-limit";
 import { imageRoute } from "./routes/image.js";
 import { videoRoute } from "./routes/video.js";
 import { checkFfmpeg } from "./utils/ffmpeg.js";
+import { cleanupStaleTemp } from "./utils/temp.js";
 
 const app = new Hono();
 
-// Middlewares
+const corsOrigins = (process.env.CORS_ORIGIN || "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
 app.use("*", logger());
 app.use(
   "*",
   cors({
-    origin: (origin) => origin || "*",
+    origin: (origin) => {
+      if (!origin) return corsOrigins[0] || "*";
+      if (corsOrigins.length === 0) return origin;
+      return corsOrigins.includes(origin) ? origin : corsOrigins[0];
+    },
     allowMethods: ["GET", "POST", "OPTIONS"],
     allowHeaders: ["Content-Type", "Authorization"],
     exposeHeaders: ["X-Original-Size", "X-Compressed-Size", "X-Compression-Ratio", "X-Output-Format", "Content-Disposition"],
   })
 );
 
-// Health check - for PM2 / IIS probe
-app.get("/api/health", (c) => {
-  const ff = checkFfmpeg();
+app.use(
+  "/api/compress/*",
+  bodyLimit({
+    maxSize: 500 * 1024 * 1024,
+    onError: (c) => c.json({ error: "File too large, max 500MB" }, 413),
+  })
+);
+
+app.get("/api/health", async (c) => {
+  const ff = await checkFfmpeg();
   return c.json({
     status: "ok",
     uptime: process.uptime(),
     version: "0.1.0",
-    ffmpeg: { path: ff.path, bundled: ff.bundled, ok: ff.ok },
+    ffmpeg: { path: ff.path, bundled: ff.bundled, ok: ff.ok, version: ff.version },
     platform: `${process.platform}-${process.arch}`,
     timestamp: new Date().toISOString(),
   });
@@ -57,6 +74,11 @@ app.onError((err, c) => {
 
 const port = Number(process.env.PORT) || 6070;
 console.log(`[redon-compress] Starting server on port ${port}...`);
+
+cleanupStaleTemp().catch(() => undefined);
+setInterval(() => {
+  cleanupStaleTemp().catch(() => undefined);
+}, 30 * 60 * 1000).unref();
 
 serve(
   {

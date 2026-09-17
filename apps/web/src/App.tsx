@@ -12,7 +12,17 @@ export default function App() {
     const base = import.meta.env.VITE_API_BASE_URL || "";
     fetch(`${base}/api/health`)
       .then((r) => r.json())
-      .then((j) => setHealth(j.status === "ok" ? { ok: true, text: "服务正常" } : { ok: false, text: "服务异常" }))
+      .then((j) => {
+        if (j.status !== "ok") {
+          setHealth({ ok: false, text: "服务异常" });
+          return;
+        }
+        if (j.ffmpeg && j.ffmpeg.ok === false) {
+          setHealth({ ok: true, text: "服务正常（无 ffmpeg）" });
+          return;
+        }
+        setHealth({ ok: true, text: "服务正常" });
+      })
       .catch(() => setHealth({ ok: false, text: "服务未连接" }));
   }, []);
 
@@ -43,7 +53,7 @@ export default function App() {
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">压缩你的媒体文件</h2>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground">
-              <ShieldCheck className="h-4 w-4" /> 文件仅在内存中处理，不持久化存储
+              <ShieldCheck className="h-4 w-4" /> 处理完删除临时文件，不持久化存储
             </p>
           </div>
         </div>
