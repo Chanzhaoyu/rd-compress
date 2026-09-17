@@ -29,7 +29,7 @@ export default function App() {
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
       <header className="sticky top-0 z-10 border-b bg-background/80 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between px-6 py-4">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <div className="flex items-center gap-3">
             <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary text-primary-foreground">
               <Sparkles className="h-5 w-5" />
@@ -48,7 +48,7 @@ export default function App() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-6 py-8">
+      <main className="mx-auto max-w-7xl px-6 py-8">
         <div className="mb-6 flex items-start justify-between gap-4">
           <div>
             <h2 className="text-2xl font-semibold tracking-tight">压缩你的媒体文件</h2>

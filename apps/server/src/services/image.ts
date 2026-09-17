@@ -35,29 +35,38 @@ export async function compressImage(
     if (!["jpeg", "png", "webp", "avif"].includes(outputFormat)) outputFormat = "jpeg";
   }
 
-  let contentType = "image/jpeg";
-  let buffer: Buffer;
+  const mime: Record<string, string> = {
+    jpeg: "image/jpeg",
+    png: "image/png",
+    webp: "image/webp",
+    avif: "image/avif",
+  };
 
+  let buffer: Buffer;
   switch (outputFormat) {
     case "jpeg":
       buffer = await pipeline.flatten({ background: "#ffffff" }).jpeg({ quality, mozjpeg: true }).toBuffer();
-      contentType = "image/jpeg";
       break;
     case "png":
       buffer = await pipeline.png({ quality: Math.round(quality), compressionLevel: 9, palette: quality < 90 }).toBuffer();
-      contentType = "image/png";
       break;
     case "webp":
       buffer = await pipeline.webp({ quality }).toBuffer();
-      contentType = "image/webp";
       break;
     case "avif":
       buffer = await pipeline.avif({ quality }).toBuffer();
-      contentType = "image/avif";
       break;
     default:
+      outputFormat = "jpeg";
       buffer = await pipeline.flatten({ background: "#ffffff" }).jpeg({ quality, mozjpeg: true }).toBuffer();
-      contentType = "image/jpeg";
+  }
+
+  const contentType = mime[outputFormat] || "image/jpeg";
+  const inputFormat = meta.format === "jpg" ? "jpeg" : meta.format;
+  const unchangedSize = !width && !height;
+  const sameFormat = inputFormat === outputFormat;
+  if (unchangedSize && sameFormat && buffer.length >= input.length) {
+    return { data: input, format: String(outputFormat), contentType };
   }
 
   return { data: buffer, format: outputFormat, contentType };

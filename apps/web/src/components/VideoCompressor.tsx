@@ -10,6 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Upload, Video as VideoIcon, Download, Loader2, Sparkles, Trash2, RotateCcw } from "lucide-react";
 import { loadSettings, saveSettings } from "@/lib/settings";
+import { formatSizeDelta } from "@/lib/utils";
 
 const VIDEO_DEFAULTS = { crf: 28, preset: "medium", width: "", height: "", fps: "", noAudio: false };
 const VIDEO_KEY = "redon-compress:video-settings";
@@ -250,7 +251,10 @@ export function VideoCompressor() {
             <CardHeader className="pb-3">
               <CardTitle className="text-sm text-emerald-700 dark:text-emerald-400">压缩完成</CardTitle>
               <CardDescription>
-                {formatBytes(result.originalSize)} → {result.size} · 节省 {result.ratio}%
+                {formatBytes(result.originalSize)} → {result.size} · {(() => {
+                  const delta = formatSizeDelta(result.originalSize, result.compressedSize);
+                  return `${delta.grew ? "增大" : "节省"} ${delta.text}`;
+                })()}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">

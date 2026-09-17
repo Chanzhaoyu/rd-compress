@@ -3,7 +3,6 @@ import ReactCrop, { type Crop } from "react-image-crop";
 import "react-image-crop/dist/ReactCrop.css";
 import JSZip from "jszip";
 import { compressImage, formatBytes } from "../lib/api";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,9 +10,9 @@ import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Upload, Crop as CropIcon, Download, Loader2, Sparkles, Trash2, Image as ImageIcon, X, RefreshCw, PackageOpen, RotateCcw, Copy, Check, Clipboard, Columns2 } from "lucide-react";
+import { Upload, Crop as CropIcon, Download, Sparkles, Trash2, X, RefreshCw, PackageOpen, RotateCcw, Copy, Check, Clipboard, Columns2 } from "lucide-react";
 import { loadSettings, saveSettings } from "@/lib/settings";
-import { cn } from "@/lib/utils";
+import { cn, formatSizeDelta } from "@/lib/utils";
 
 type Status = "pending" | "compressing" | "done" | "error";
 
@@ -51,19 +50,8 @@ function qualityBadgeClass(q: number) {
 
 function CompareSlider({ before, after }: { before: string; after: string }) {
   const [pos, setPos] = useState(50);
-  const [boxW, setBoxW] = useState(0);
   const dragging = useRef(false);
   const boxRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const el = boxRef.current;
-    if (!el) return;
-    const sync = () => setBoxW(el.clientWidth);
-    sync();
-    const ro = new ResizeObserver(sync);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
 
   const update = (clientX: number) => {
     const box = boxRef.current;
@@ -76,7 +64,7 @@ function CompareSlider({ before, after }: { before: string; after: string }) {
   return (
     <div
       ref={boxRef}
-      className="relative h-[280px] w-full cursor-ew-resize overflow-hidden rounded-lg border bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%,transparent_75%,#e5e7eb_75%),linear-gradient(45deg,#e5e7eb_25%,transparent_25%,transparent_75%,#e5e7eb_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] select-none"
+      className="relative h-[360px] w-full cursor-ew-resize overflow-hidden rounded-xl border bg-[linear-gradient(45deg,#e5e7eb_25%,transparent_25%,transparent_75%,#e5e7eb_75%),linear-gradient(45deg,#e5e7eb_25%,transparent_25%,transparent_75%,#e5e7eb_75%)] bg-[length:16px_16px] bg-[position:0_0,8px_8px] select-none"
       onPointerDown={(e) => {
         dragging.current = true;
         (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
@@ -89,10 +77,14 @@ function CompareSlider({ before, after }: { before: string; after: string }) {
         dragging.current = false;
       }}
     >
-      <img src={after} alt="压缩后" className="absolute inset-0 h-full w-full object-contain" draggable={false} />
-      <div className="absolute inset-0 overflow-hidden" style={{ width: `${pos}%` }}>
-        <img src={before} alt="原图" className="h-full object-contain" style={{ width: boxW || "100%" }} draggable={false} />
-      </div>
+      <img src={after} alt="压缩后" className="absolute inset-0 h-full w-full max-w-none object-contain" draggable={false} />
+      <img
+        src={before}
+        alt="原图"
+        className="absolute inset-0 h-full w-full max-w-none object-contain"
+        style={{ clipPath: `inset(0 ${100 - pos}% 0 0)` }}
+        draggable={false}
+      />
       <div className="absolute inset-y-0 z-10 w-0.5 bg-white shadow" style={{ left: `${pos}%` }}>
         <div className="absolute top-1/2 left-1/2 flex h-7 w-7 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border bg-white text-foreground shadow">
           <Columns2 className="h-3.5 w-3.5" />
@@ -428,7 +420,7 @@ export function ImageCompressor() {
   const doneCount = items.filter((i) => i.status === "done").length;
   const totalOriginal = items.reduce((s, i) => s + i.originalSize, 0);
   const totalCompressed = items.filter((i) => i.compressedSize).reduce((s, i) => s + (i.compressedSize || 0), 0);
-  const totalRatio = totalOriginal > 0 && totalCompressed > 0 ? (((totalOriginal - totalCompressed) / totalOriginal) * 100).toFixed(1) : "0";
+  const totalDelta = formatSizeDelta(totalOriginal, totalCompressed);
   const activePreset = PRESETS.find((p) => p.quality === quality && p.format === format && p.width === width && p.height === height)?.id;
   const compareItem = items.find((i) => i.id === compareId && i.status === "done" && i.blobUrl) ?? null;
 
@@ -461,240 +453,245 @@ export function ImageCompressor() {
         <div className="rounded-lg border bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">{notice}</div>
       )}
 
-      {items.length === 0 ? (
-        <Card className="overflow-hidden">
-          <button type="button" onClick={openPicker} className="flex w-full flex-col items-center justify-center px-6 py-16 text-center transition-colors hover:bg-muted/40">
-            <div className="rounded-full bg-primary p-3">
-              <Upload className="h-7 w-7 text-primary-foreground" />
-            </div>
-            <p className="mt-4 text-base font-medium">拖拽、点击或粘贴图片</p>
-            <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
-              <Clipboard className="h-3.5 w-3.5" /> Ctrl / Cmd + V · 最多 20 张 · 单张 30MB
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">JPEG / PNG / WebP / AVIF · 单张可裁剪，批量自动压缩</p>
-          </button>
-        </Card>
-      ) : (
-        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3 shadow-sm">
-          <div className="min-w-0 text-sm">
-            <p className="font-medium">
-              已完成 {doneCount}/{items.length}
-              {doneCount > 0 && (
-                <span className="ml-2 text-muted-foreground">
-                  {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)} · 节省 {totalRatio}%
-                </span>
-              )}
-            </p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Button size="sm" variant="outline" onClick={openPicker}>
-              <Upload className="h-3.5 w-3.5" /> 再添加
-            </Button>
-            <Button size="sm" onClick={downloadAll} disabled={doneCount === 0}>
-              <PackageOpen className="h-3.5 w-3.5" /> {doneCount > 1 ? `下载 ZIP (${doneCount})` : "下载"}
-            </Button>
-          </div>
-        </div>
-      )}
-
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-1">
-          <CardHeader>
-            <div className="flex items-start justify-between gap-2">
+      <div className="grid items-start gap-6 lg:grid-cols-[272px_minmax(0,1fr)]">
+        <aside className="lg:sticky lg:top-20">
+          <div className="rounded-xl border bg-card p-4 shadow-sm">
+            <div className="mb-4 flex items-start justify-between gap-2">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base">
+                <p className="flex items-center gap-2 text-sm font-semibold">
                   <Sparkles className="h-4 w-4" /> 压缩参数
-                </CardTitle>
-                <CardDescription>预设一键套用 · 修改后点重新压缩</CardDescription>
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground">预设一键套用 · 改完点重新压缩</p>
               </div>
-              <Button variant="ghost" size="sm" onClick={resetSettings} className="h-7 shrink-0 gap-1 text-xs">
+              <Button variant="ghost" size="sm" onClick={resetSettings} className="h-7 shrink-0 gap-1 px-2 text-xs">
                 <RotateCcw className="h-3.5 w-3.5" /> 默认
               </Button>
             </div>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            <div className="flex flex-wrap gap-1.5">
-              {PRESETS.map((p) => (
-                <Button
-                  key={p.id}
-                  type="button"
-                  size="sm"
-                  variant={activePreset === p.id ? "default" : "outline"}
-                  className="h-7 px-2.5 text-xs"
-                  onClick={() => applyPreset(p.id)}
-                >
-                  {p.label}
-                </Button>
-              ))}
-            </div>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label>质量</Label>
-                <Badge className={`font-mono ${qualityBadgeClass(quality)}`}>{quality}</Badge>
-              </div>
-              <Slider value={[quality]} min={1} max={100} step={1} onValueChange={([v]) => setQuality(v)} />
-              <div className="flex justify-between text-xs">
-                <span className="text-muted-foreground">体积优先</span>
-                <span className={`font-medium ${quality <= 30 ? "text-red-500" : quality <= 60 ? "text-amber-500" : quality <= 80 ? "text-sky-500" : "text-emerald-600"}`}>
-                  {quality <= 30 ? "极致压缩" : quality <= 60 ? "均衡偏小" : quality <= 80 ? "均衡" : "高质量"}
-                </span>
-                <span className="text-muted-foreground">质量优先</span>
-              </div>
-            </div>
-            <div className="space-y-2">
-              <Label>输出格式</Label>
-              <Select value={format} onValueChange={setFormat}>
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="keep">保持原格式</SelectItem>
-                  <SelectItem value="jpeg">JPEG</SelectItem>
-                  <SelectItem value="png">PNG</SelectItem>
-                  <SelectItem value="webp">WebP</SelectItem>
-                  <SelectItem value="avif">AVIF</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-2">
-                <Label>宽度</Label>
-                <Input placeholder="1920" value={width} onChange={(e) => setWidth(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>高度</Label>
-                <Input placeholder="1080" value={height} onChange={(e) => setHeight(e.target.value)} />
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {["1920", "1280", "800"].map((w) => (
-                <Button key={w} type="button" size="sm" variant="ghost" className="h-7 px-2 text-xs" onClick={() => setWidth(w)}>
-                  {w}w
-                </Button>
-              ))}
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button onClick={compressAll} disabled={items.length === 0} variant="outline" className="gap-1.5 whitespace-nowrap">
-                <RefreshCw className="h-4 w-4 shrink-0" /> {items.some((i) => i.status === "pending" || i.status === "error") ? "开始压缩" : "重新压缩"}
-              </Button>
-              <Button variant="ghost" onClick={clearAll} disabled={items.length === 0} className="gap-1.5 whitespace-nowrap">
-                <Trash2 className="h-4 w-4 shrink-0" /> 清空
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <ImageIcon className="h-4 w-4" /> {items.length === 0 ? "等待上传" : `队列 ${items.length} 张`}
-            </CardTitle>
-            <CardDescription>{items.length === 0 ? "粘贴截图或拖入图片开始" : "点击缩略图对比原图 / 压缩结果"}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {compareItem?.blobUrl && (
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>拖动分割线对比 · {compareItem.file.name}</span>
-                  <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setCompareId(null)}>
-                    关闭
-                  </Button>
-                </div>
-                <CompareSlider before={compareItem.preview} after={compareItem.blobUrl} />
-              </div>
-            )}
-
-            {items.length === 0 ? (
-              <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">暂无图片</div>
-            ) : (
-              <div className="grid max-h-[520px] grid-cols-2 gap-3 overflow-auto pr-1 sm:grid-cols-3">
-                {items.map((it) => (
-                  <div
-                    key={it.id}
-                    className={cn(
-                      "group relative overflow-hidden rounded-lg border bg-card",
-                      it.status === "done" && "border-emerald-200",
-                      it.status === "error" && "border-destructive/40",
-                      compareItem?.id === it.id && "ring-2 ring-primary"
-                    )}
+            <div className="space-y-5">
+              <div className="flex flex-wrap gap-1.5">
+                {PRESETS.map((p) => (
+                  <Button
+                    key={p.id}
+                    type="button"
+                    size="sm"
+                    variant={activePreset === p.id ? "default" : "outline"}
+                    className="h-7 px-2.5 text-xs"
+                    onClick={() => applyPreset(p.id)}
                   >
-                    <button
-                      type="button"
-                      className="block w-full"
-                      onClick={() => it.status === "done" && it.blobUrl && setCompareId(it.id)}
-                    >
-                      <img src={it.blobUrl || it.preview} alt={it.file.name} className="h-28 w-full object-cover" />
-                    </button>
-                    <div className="space-y-1 p-2">
-                      <p className="truncate text-xs font-medium">{it.file.name}</p>
-                      <div className="flex flex-wrap items-center gap-1 text-[10px] text-muted-foreground">
-                        <span>{formatBytes(it.originalSize)}</span>
-                        {it.status === "done" && it.compressedSize !== undefined && (
-                          <>
-                            <span>→</span>
-                            <span className="font-medium text-emerald-600">{formatBytes(it.compressedSize)}</span>
-                            <Badge variant="secondary" className="px-1 py-0 text-[10px] leading-none">
-                              -{it.ratio}%
-                            </Badge>
-                          </>
-                        )}
-                        {it.status === "compressing" && (
-                          <Badge className="gap-1">
-                            <Loader2 className="h-3 w-3 animate-spin" /> 压缩中
-                          </Badge>
-                        )}
-                        {it.status === "error" && <span className="text-destructive">{it.error}</span>}
-                        {it.status === "pending" && <span>等待中</span>}
-                      </div>
-                      {it.status === "compressing" && <Progress value={66} className="h-1" />}
-                      <div className="flex items-center gap-1">
-                        {it.status === "done" && (
-                          <>
-                            <Button size="sm" variant="outline" onClick={() => downloadOne(it)} className="h-7 px-2">
-                              <Download className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button size="sm" variant="outline" onClick={() => copyOne(it)} className="h-7 px-2">
-                              {copiedId === it.id ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-                            </Button>
-                          </>
-                        )}
-                        {(it.status === "error" || it.status === "pending") && (
-                          <Button size="sm" variant="ghost" onClick={() => compressOne(it.id, it, items.length === 1)} className="h-7 px-2">
-                            <RefreshCw className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                        <Button size="sm" variant="ghost" onClick={() => removeOne(it.id)} className="ml-auto h-7 px-2">
-                          <X className="h-3.5 w-3.5" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
+                    {p.label}
+                  </Button>
                 ))}
               </div>
-            )}
-
-            {showCrop && singleItem && (
-              <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
-                <Label className="flex items-center gap-1.5">
-                  <CropIcon className="h-3.5 w-3.5" /> 裁剪单张（可选，再压缩）
-                </Label>
-                <div className="overflow-hidden rounded-lg border bg-background">
-                  <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
-                    <img ref={imgRef} src={singleItem.preview} alt="crop" className="max-h-[300px] w-full object-contain" />
-                  </ReactCrop>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label>质量</Label>
+                  <Badge className={`font-mono ${qualityBadgeClass(quality)}`}>{quality}</Badge>
                 </div>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-muted-foreground">
-                    {crop && crop.width > 0 ? `已选 ${Math.round(crop.width)} × ${Math.round(crop.height)}` : "拖拽选区，不选则压缩原图"}
+                <Slider value={[quality]} min={1} max={100} step={1} onValueChange={([v]) => setQuality(v)} />
+                <div className="flex justify-between text-xs">
+                  <span className="text-muted-foreground">体积优先</span>
+                  <span className={`font-medium ${quality <= 30 ? "text-red-500" : quality <= 60 ? "text-amber-500" : quality <= 80 ? "text-sky-500" : "text-emerald-600"}`}>
+                    {quality <= 30 ? "极致压缩" : quality <= 60 ? "均衡偏小" : quality <= 80 ? "均衡" : "高质量"}
+                  </span>
+                  <span className="text-muted-foreground">质量优先</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>输出格式</Label>
+                <Select value={format} onValueChange={setFormat}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="keep">保持原格式</SelectItem>
+                    <SelectItem value="jpeg">JPEG</SelectItem>
+                    <SelectItem value="png">PNG</SelectItem>
+                    <SelectItem value="webp">WebP</SelectItem>
+                    <SelectItem value="avif">AVIF</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label>宽度</Label>
+                  <Input placeholder="原宽" value={width} onChange={(e) => setWidth(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>高度</Label>
+                  <Input placeholder="原高" value={height} onChange={(e) => setHeight(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {["1920", "1280", "800"].map((w) => (
+                  <Button key={w} type="button" size="sm" variant={width === w ? "secondary" : "ghost"} className="h-7 px-2 text-xs" onClick={() => setWidth(w)}>
+                    {w}w
+                  </Button>
+                ))}
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button onClick={compressAll} disabled={items.length === 0} variant="outline" className="gap-1.5 whitespace-nowrap">
+                  <RefreshCw className="h-4 w-4 shrink-0" /> {items.some((i) => i.status === "pending" || i.status === "error") ? "开始压缩" : "重新压缩"}
+                </Button>
+                <Button variant="ghost" onClick={clearAll} disabled={items.length === 0} className="gap-1.5 whitespace-nowrap">
+                  <Trash2 className="h-4 w-4 shrink-0" /> 清空
+                </Button>
+              </div>
+            </div>
+          </div>
+        </aside>
+
+        <section className="min-w-0 space-y-4">
+          {items.length === 0 ? (
+            <button
+              type="button"
+              onClick={openPicker}
+              className="flex min-h-[320px] w-full flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-16 text-center transition-colors hover:border-primary/50 hover:bg-muted/30"
+            >
+              <div className="rounded-full bg-primary p-3">
+                <Upload className="h-7 w-7 text-primary-foreground" />
+              </div>
+              <p className="mt-4 text-base font-medium">拖拽、点击或粘贴图片</p>
+              <p className="mt-1 flex items-center gap-1 text-sm text-muted-foreground">
+                <Clipboard className="h-3.5 w-3.5" /> Ctrl / Cmd + V · 最多 20 张 · 单张 30MB
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">JPEG / PNG / WebP / AVIF · 单张可裁剪，批量自动压缩</p>
+            </button>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card px-4 py-3">
+                <div className="min-w-0 text-sm">
+                  <p className="font-medium">
+                    已完成 {doneCount}/{items.length}
+                    {doneCount > 0 && (
+                      <span className="ml-2 text-muted-foreground">
+                        {formatBytes(totalOriginal)} → {formatBytes(totalCompressed)} · {totalDelta.grew ? "增大" : "节省"} {totalDelta.text}
+                      </span>
+                    )}
                   </p>
-                  <Button size="sm" onClick={compressAll} disabled={singleItem.status === "compressing"}>
-                    {singleItem.status === "compressing" ? "压缩中..." : "开始压缩"}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={openPicker}>
+                    <Upload className="h-3.5 w-3.5" /> 再添加
+                  </Button>
+                  <Button size="sm" onClick={downloadAll} disabled={doneCount === 0}>
+                    <PackageOpen className="h-3.5 w-3.5" /> {doneCount > 1 ? `下载 ZIP (${doneCount})` : "下载"}
                   </Button>
                 </div>
               </div>
-            )}
-          </CardContent>
-        </Card>
+
+              {compareItem?.blobUrl && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs text-muted-foreground">
+                    <span>拖动分割线对比 · {compareItem.file.name}</span>
+                    <Button size="sm" variant="ghost" className="h-6 px-2" onClick={() => setCompareId(null)}>
+                      关闭
+                    </Button>
+                  </div>
+                  <CompareSlider before={compareItem.preview} after={compareItem.blobUrl} />
+                </div>
+              )}
+
+              {showCrop && singleItem && (
+                <div className="space-y-2 rounded-xl border bg-muted/20 p-3">
+                  <Label className="flex items-center gap-1.5">
+                    <CropIcon className="h-3.5 w-3.5" /> 裁剪单张（可选，再压缩）
+                  </Label>
+                  <div className="overflow-hidden rounded-lg border bg-background">
+                    <ReactCrop crop={crop} onChange={(c) => setCrop(c)}>
+                      <img ref={imgRef} src={singleItem.preview} alt="crop" className="max-h-[360px] w-full object-contain" />
+                    </ReactCrop>
+                  </div>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {crop && crop.width > 0 ? `已选 ${Math.round(crop.width)} × ${Math.round(crop.height)}` : "拖拽选区，不选则压缩原图"}
+                    </p>
+                    <Button size="sm" onClick={compressAll} disabled={singleItem.status === "compressing"}>
+                      {singleItem.status === "compressing" ? "压缩中..." : "开始压缩"}
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-hidden rounded-xl border bg-card">
+                <div className="hidden border-b bg-muted/40 px-3 py-2 text-xs text-muted-foreground sm:grid sm:grid-cols-[minmax(0,1fr)_220px_148px] sm:gap-3">
+                  <span>文件</span>
+                  <span>体积</span>
+                  <span className="text-right">操作</span>
+                </div>
+                <ul className="divide-y">
+                  {items.map((it) => {
+                    const delta = it.compressedSize !== undefined ? formatSizeDelta(it.originalSize, it.compressedSize) : null;
+                    return (
+                      <li
+                        key={it.id}
+                        className={cn(
+                          "grid items-center gap-3 px-3 py-2.5 sm:grid-cols-[minmax(0,1fr)_220px_148px]",
+                          compareItem?.id === it.id && "bg-primary/5",
+                          it.status === "error" && "bg-destructive/5"
+                        )}
+                      >
+                        <button
+                          type="button"
+                          className="flex min-w-0 items-center gap-3 text-left"
+                          onClick={() => it.status === "done" && it.blobUrl && setCompareId(it.id)}
+                        >
+                          <img src={it.blobUrl || it.preview} alt="" className="h-12 w-12 shrink-0 rounded-md border object-cover" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-medium">{it.file.name}</span>
+                            <span className="text-xs text-muted-foreground">
+                              {it.status === "done" ? "点击对比" : it.status === "compressing" ? "压缩中" : it.status === "error" ? it.error : "等待中"}
+                            </span>
+                          </span>
+                        </button>
+                        <div className="min-w-0 text-sm">
+                          {it.status === "done" && it.compressedSize !== undefined ? (
+                            <div className="flex flex-wrap items-center gap-1.5">
+                              <span className="text-muted-foreground">{formatBytes(it.originalSize)}</span>
+                              <span className="text-muted-foreground">→</span>
+                              <span className={cn("font-medium", delta?.grew ? "text-amber-600" : "text-emerald-600")}>{formatBytes(it.compressedSize)}</span>
+                              {delta && (
+                                <Badge variant="secondary" className="px-1.5 py-0 text-[11px] leading-5">
+                                  {delta.text}
+                                </Badge>
+                              )}
+                            </div>
+                          ) : it.status === "compressing" ? (
+                            <Progress value={66} className="h-1.5 w-40" />
+                          ) : (
+                            <span className="text-muted-foreground">{formatBytes(it.originalSize)}</span>
+                          )}
+                        </div>
+                        <div className="flex items-center justify-end gap-1">
+                          {it.status === "done" && (
+                            <>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="对比" onClick={() => it.blobUrl && setCompareId(it.id)}>
+                                <Columns2 className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="下载" onClick={() => downloadOne(it)}>
+                                <Download className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="复制" onClick={() => copyOne(it)}>
+                                {copiedId === it.id ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                              </Button>
+                            </>
+                          )}
+                          {(it.status === "error" || it.status === "pending") && (
+                            <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="重试" onClick={() => compressOne(it.id, it, items.length === 1)}>
+                              <RefreshCw className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button size="sm" variant="ghost" className="h-8 w-8 p-0" title="移除" onClick={() => removeOne(it.id)}>
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </div>
+            </>
+          )}
+        </section>
       </div>
     </div>
   );
