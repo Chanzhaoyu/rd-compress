@@ -90,7 +90,7 @@ videoRoute.post("/", async (c) => {
     c.header("X-Original-Size", String(originalSize));
     c.header("X-Compressed-Size", String(compressedSize));
     c.header("X-Compression-Ratio", ((1 - compressedSize / originalSize) * 100).toFixed(2));
-    c.header("Content-Disposition", `attachment; filename="${safeName}-compressed${outputExt}"`);
+    c.header("Content-Disposition", `attachment; filename="${safeName}${outputExt}"`);
 
     const stream = createReadStream(outputPath);
     stream.on("close", () => {

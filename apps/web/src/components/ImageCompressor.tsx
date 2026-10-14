@@ -35,6 +35,31 @@ const IMAGE_KEY = "redon-compress:image-settings";
 const MAX_ITEMS = 20;
 const MAX_IMAGE_SIZE = 30 * 1024 * 1024;
 
+function getOutputFilename(item: BatchItem): string {
+  const ext = item.format || item.file.name.split(".").pop() || "jpg";
+  const base = item.file.name.replace(/\.[^.]+$/, "") || "image";
+  return `${base}.${ext}`;
+}
+
+function getUniqueFilename(filename: string, used: Set<string>): string {
+  if (!used.has(filename)) {
+    used.add(filename);
+    return filename;
+  }
+
+  const dot = filename.lastIndexOf(".");
+  const base = dot > 0 ? filename.slice(0, dot) : filename;
+  const ext = dot > 0 ? filename.slice(dot) : "";
+  let index = 2;
+  let candidate = `${base} (${index})${ext}`;
+  while (used.has(candidate)) {
+    index += 1;
+    candidate = `${base} (${index})${ext}`;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
 const PRESETS = [
   { id: "wechat", label: "微信图", quality: 80, format: "jpeg", width: "1920", height: "" },
   { id: "doc", label: "文档 WebP", quality: 70, format: "webp", width: "", height: "" },
@@ -389,9 +414,7 @@ export function ImageCompressor() {
     if (!item.blobUrl) return;
     const a = document.createElement("a");
     a.href = item.blobUrl;
-    const ext = item.format || item.file.name.split(".").pop() || "jpg";
-    const base = item.file.name.replace(/\.[^.]+$/, "");
-    a.download = `${base}-compressed.${ext}`;
+    a.download = getOutputFilename(item);
     a.click();
   };
 
@@ -403,10 +426,10 @@ export function ImageCompressor() {
       return;
     }
     const zip = new JSZip();
+    const usedFilenames = new Set<string>();
     done.forEach((it) => {
-      const ext = it.format || it.file.name.split(".").pop() || "jpg";
-      const base = it.file.name.replace(/\.[^.]+$/, "");
-      zip.file(`${base}-compressed.${ext}`, it.blob!);
+      const filename = getUniqueFilename(getOutputFilename(it), usedFilenames);
+      zip.file(filename, it.blob!);
     });
     const blob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(blob);
@@ -418,8 +441,9 @@ export function ImageCompressor() {
   };
 
   const doneCount = items.filter((i) => i.status === "done").length;
-  const totalOriginal = items.reduce((s, i) => s + i.originalSize, 0);
-  const totalCompressed = items.filter((i) => i.compressedSize).reduce((s, i) => s + (i.compressedSize || 0), 0);
+  const completedItems = items.filter((i) => i.status === "done" && i.compressedSize !== undefined);
+  const totalOriginal = completedItems.reduce((sum, item) => sum + item.originalSize, 0);
+  const totalCompressed = completedItems.reduce((sum, item) => sum + item.compressedSize!, 0);
   const totalDelta = formatSizeDelta(totalOriginal, totalCompressed);
   const activePreset = PRESETS.find((p) => p.quality === quality && p.format === format && p.width === width && p.height === height)?.id;
   const compareItem = items.find((i) => i.id === compareId && i.status === "done" && i.blobUrl) ?? null;

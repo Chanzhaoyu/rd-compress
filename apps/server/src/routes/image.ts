@@ -53,7 +53,7 @@ imageRoute.post("/", async (c) => {
     c.header("X-Compressed-Size", String(compressedSize));
     c.header("X-Compression-Ratio", ((1 - compressedSize / originalSize) * 100).toFixed(2));
     c.header("X-Output-Format", outFormat);
-    c.header("Content-Disposition", `attachment; filename="${safeName}-compressed.${outFormat}"`);
+    c.header("Content-Disposition", `attachment; filename="${safeName}.${outFormat}"`);
     const payload = new Uint8Array(data.byteLength);
     payload.set(data);
     return new Response(payload, { headers: c.res.headers });

@@ -264,7 +264,7 @@ export function VideoCompressor() {
                 const a = document.createElement("a");
                 a.href = resultUrl;
                 const base = file?.name.replace(/\.[^.]+$/, "") || "video";
-                a.download = `${base}-compressed.mp4`;
+                a.download = `${base}.mp4`;
                 a.click();
               }}>
                 <Download className="h-4 w-4" /> 下载视频
